@@ -23,7 +23,7 @@ $ source env/bin/activate.fish
 ```
 Install requirments:
 ```bash
-$ pip install
+$ pip install -r requirements.txt
 ```
 #### Run the application server
 Run the main file:
