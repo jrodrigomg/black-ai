@@ -1,0 +1,4 @@
+ai/env/
+ai/__pycache__/
+*.pyc
+my_model.h5
