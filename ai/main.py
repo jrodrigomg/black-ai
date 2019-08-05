@@ -29,7 +29,7 @@ def play(env):
     model.compile(loss='mse', optimizer='adam', metrics=['mae'])
 
     #Load a previous model
-    response = input("Load? y/n")
+    response = input("Load previous model? y/n (no if you dont have a previous model)\n")
     if(response=="y" or response=="Y" or response=="yes"):
         model.load_weights('my_model.h5')
         weights =model.layers[1].get_weights()[0]
@@ -103,7 +103,7 @@ def play(env):
 
     #Guardamos los pesos del modelo!
     
-    response = input("Save model? y/n")
+    response = input("Save model? y/n\n")
     if(response=="y" or response=="Y" or response=="yes"):
         print("Saving Model")
         model.save('my_model.h5')  
@@ -188,8 +188,14 @@ def play_greedy(env):
 def main():
     # Initialize key objects: environment, agent and preprocessor
     env = Environment("127.0.0.1", 9090)
-    play(env)
-    # play_greedy(env)
+    response = input("Wich model you want to run? \n 1. e-greedy model \n 2.- keras model \n")
+    
+    if(response=="2"):
+        print("Running keras model")
+        play(env)
+    else:
+        print("Runing e-greedy model")
+        play_greedy(env)
     
 
 if __name__ == '__main__':

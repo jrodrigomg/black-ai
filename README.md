@@ -10,7 +10,7 @@ Playing Black Jack with Reinforcement Learning
 Cloning:
 ```bash
 $ git clone https://github.com/jrodrigomg/black-ai
-$ cd ai
+$ cd black-ai/ai
 ```
 Creating a virtual environment:
 ```bash
