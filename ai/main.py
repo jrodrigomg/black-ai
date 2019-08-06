@@ -11,6 +11,7 @@ import numpy as np
 import time
 from keras.models import Sequential
 from keras.layers import Dense, InputLayer
+import keras
 import matplotlib.pylab as plt
 from keras.models import load_model
 
@@ -24,9 +25,11 @@ def play(env):
     #Neural network
     model = Sequential()
     model.add(InputLayer(batch_input_shape=(1, 30)))
-    model.add(Dense(20, activation='sigmoid'))
+    model.add(Dense(60, activation='relu'))
+    model.add(Dense(30, activation='relu'))
     model.add(Dense(2, activation='linear'))
-    model.compile(loss='mse', optimizer='adam', metrics=['mae'])
+    # adam =keras.optimizers.Adam(lr=0.005, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.001, amsgrad=False)
+    model.compile(loss='mse', optimizer="adam", metrics=['mae'])
 
     #Load a previous model
     response = input("Load previous model? y/n (no if you dont have a previous model)\n")
@@ -37,14 +40,17 @@ def play(env):
     
 
     #Q Learning configurations
-    y = 0.95
+    y = 0.8
     eps = 0.5
     if(loaded):
-        eps = 0.10
-    decay_factor = 0.999
+        eps = 0.20
+    decay_factor = 0.996
+    y_factor = 0.996
     r_avg_list = []
+    r_10_list = []
     winnigs_seguidas = 0
     n = 200
+    r_10_sum = 0
 
     #Setting Configurations
     response = input("How quickly? (s)")
@@ -58,7 +64,6 @@ def play(env):
         #Contamos cuantas veces vamos jugando
         epoch+= 1
         print("\n Epoch:", epoch)
-        eps *= decay_factor
         r_sum = 0
         #Empezamos el juego en el ambiente.
         #Obteniendo el primer estado y ver si no ha terminado ya!
@@ -75,30 +80,51 @@ def play(env):
             #Ahora necesitamos solo modificar uno de los dos resultados ya que
             #se escogio solo una de esas dos acciones
             #nos explica entonces que entonces el target lo contrenda el vector en la posicion de la accion tomada
-            target_vec = model.predict(np.identity(30)[s:s+1])[0]
-            target_vec[a] = target
+            target_vec = model.predict(np.identity(30)[s:s+1])
+            target_vec[0][a] = target
 
             #Ahora actualizamos el modelo con los nuevos valores
-            model.fit(np.identity(30)[s:s + 1], target_vec.reshape(-1, 2), epochs=1, verbose=0)
+            model.fit(np.identity(30)[s:s + 1], target_vec, epochs=1, verbose=0)
             #Ahora el s actual se vuelve el que fue en base a nuestra accion anterior
             s = new_s
             #Sumamos el reward
             r_sum += r
+        
+        #sumamos el reward
+        r_10_sum += r_sum
+
+        #Calculando el nuevo discount factor y
+        y = 1 - y_factor*(1- y)
+
+        #Calculando el epsilon nuevo 
+        eps *= decay_factor
+
         ##Suponemos que con mayor o igual a 0.6 es que ha ganado.
-        if(r_sum >= 0.6):
+        if(r_sum >= 1):
             winnigs_seguidas+=1
         #Cada 10 juegos miramos cuantas veces gano y volvemos a resetear el numero
-        if(epoch%10 == 0):
+        if(epoch%20 == 0):
             r_avg_list.append(winnigs_seguidas)
+            r_10_list.append(r_10_sum)
+            r_10_sum =0
             winnigs_seguidas = 0
     
     #Miramos cuanto tiene epsilon a este punto  
     print("eps:", eps)
+    #Miramos cuanto tiene y
+    print("y:", y)
 
     #Imprimamos nuestro resultado:
     print("Result:(weights)")
-    weights =model.layers[1].get_weights()[0]
+    weights =model.layers[2].get_weights()[0]
     print(weights)
+
+
+    # #Graficamos la suma de cada 10 juegos
+    plt.plot(r_10_list)
+    plt.ylabel('Reward each 20 games')
+    plt.xlabel('Step each 20 games')
+    plt.show()
 
 
     #Guardamos los pesos del modelo!
@@ -109,31 +135,37 @@ def play(env):
         model.save('my_model.h5')  
 
     #Graficamos
-    plt.plot(r_avg_list)
-    plt.ylabel('Winnings each 5 games')
-    plt.xlabel('Number of 5 games iterations')
-    plt.show()
+    # plt.plot(r_avg_list)
+    # plt.ylabel('Winnings each 5 games')
+    # plt.xlabel('Number of 5 games iterations')
+    # plt.show()
+
+
 
 
 def play_greedy(env):
     epoch = 0
     #Neural network
     q_table = np.zeros((30, 2))
-    y = 0.95
+    y = 0.8
     eps = 0.5
-    lr = 0.8
-    decay_factor = 0.999
+    lr = 0.7
+    lr_factor = 0.995
+    y_factor = 0.995
+    decay_factor = 0.995
     winnigs_seguidas = 0
     r_avg_list = []
+    r_10_list = []
     done = False
-    n = 300
+    n = 50
     while not done:
+
+        r_10_sum = 0
         #Hacer n iteraciones
         for i in range(1,n):
             #Contamos cuantas veces vamos jugando
             epoch+= 1
             print("\n Epoch:", epoch)
-            eps *= decay_factor
             r_sum = 0
             #Empezamos el juego en el ambiente.
             #Obteniendo el primer estado y ver si no ha terminado ya!
@@ -145,31 +177,59 @@ def play_greedy(env):
                     a = np.argmax(q_table[s, :]) #Si no se quiere cambiar entonces que escoja nuestro modelo.
                 new_s, r, finished = env.do_action(a)
                 #ECUACION DE Bellman , el nucleo de nuestro RL
-                q_table[s, a] += r + lr * (y * np.max(q_table[new_s, :]) - q_table[s, a])
+                q_table[s, a] +=  lr * (r + y * np.max(q_table[new_s, :]) - q_table[s, a])
+                #ahora s es nuestro new_s ya que es nuevo estado
                 s = new_s
                 #Sumamos el reward
                 r_sum += r
             
+            r_10_sum += r_sum
             ##Suponemos que con mayor o igual a 0.6 es que ha ganado.
-            if(r_sum >= 0.6):
+            if(r_sum >= 1):
                 winnigs_seguidas+=1
             
             #Cada 10 juegos miramos cuantas veces gano y volvemos a resetear el numero
-            if(epoch%10 == 0):
+            if(epoch%20 == 0):
                 r_avg_list.append(winnigs_seguidas)
+                r_10_list.append(r_10_sum)
                 winnigs_seguidas = 0
+                r_10_sum = 0
+            
+
+            #Calculando el nuevo discount factor y
+            y = 1 - y_factor*(1- y)
+
+            ##Calculando el nuevo learning rate lr
+            lr *= (lr_factor) 
+
+            #Calculando el epsilon nuevo 
+            eps *= decay_factor
+
         #Miramos cuanto tiene epsilon a este punto        
         print("eps:", eps)
-        #Miramos lo que contiene nuestro table
-        print("Q TABLE:",q_table)
+        #Miramos cuanto tiene lr
+        print("lr:", lr)
+        #Miramos cuanto tiene y
+        print("y:", y)
 
+        #Miramos lo que contiene nuestro table
+        print("Q TABLE:\n",q_table)
+
+
+        
         #TODO:
         # * Save the model (Q_TABLE)
 
-        #Graficamos el punto
-        plt.plot(r_avg_list)
-        plt.ylabel('Winnings each 5 games')
-        plt.xlabel('Number of 5 games iterations')
+        # Graficamos el punto
+        # plt.plot(r_avg_list)
+        # plt.ylabel('Winnings each 20 games')
+        # plt.xlabel('Number of 20 games iterations')
+        # plt.show()
+
+        # #Graficamos la suma de cada 10 juegos
+        plt.plot(r_10_list)
+        plt.ylabel('Reward each 20 games')
+        plt.xlabel('Step each 20 games')
         plt.show()
 
 
